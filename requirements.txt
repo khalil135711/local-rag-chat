@@ -1,0 +1,4 @@
+streamlit>=1.38
+ollama>=0.3.3
+chromadb>=0.5.5
+pypdf>=4.3.1

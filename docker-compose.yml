@@ -1,0 +1,52 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # --- Optional: NVIDIA GPU (needs nvidia-container-toolkit). Uncomment: ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # One-shot job: downloads the models into the ollama volume, then exits.
+  model-puller:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${LLM_MODEL:-llama3.2:3b} && ollama pull ${EMBED_MODEL:-nomic-embed-text}"]
+    restart: "no"
+
+  app:
+    build: .
+    container_name: rag-app
+    depends_on:
+      model-puller:
+        condition: service_completed_successfully
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-llama3.2:3b}
+      - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
+      - DB_PATH=/app/chroma_db
+    volumes:
+      - chroma_data:/app/chroma_db
+    ports:
+      - "8501:8501"
+
+volumes:
+  ollama_data:
+  chroma_data:
